@@ -10,7 +10,10 @@ import {
   ArrowRight,
   Coffee,
   ShoppingBag,
-  Laptop
+  Laptop,
+  Key,
+  FileText,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   CaseFormInput,
@@ -26,12 +29,14 @@ import {
 import { validateCaseForm } from '../core/form/validate';
 import { runRuleBasedDiagnosis } from '../core/diagnosis/rules';
 import { getFallbackDecisions } from '../core/ai/fallbacks';
+import { generateAiDecisions } from '../services/aiService';
 
 interface CaseFormViewProps {
   onStartSimulation: (
     profile: NormalizedProfile,
     diagnosis: DiagnosticLabel[],
-    decisions: Decision[]
+    decisions: Decision[],
+    source?: 'openai' | 'fallback'
   ) => void;
 }
 
@@ -118,11 +123,41 @@ export const PRESET_SERVICIOS: CaseFormInput = {
   horizonte: 12,
 };
 
+export const PRESET_BLANCO: CaseFormInput = {
+  rubro: 'gastronomia',
+  tipoOferta: 'servicio',
+  moneda: 'S/',
+  descripcionLibre: '',
+  clientesPorMes: 1000,
+  ticketPromedio: 25,
+  tendenciaUltimos3Meses: { tipo: 'estable', porcentaje: 0 },
+  estacionalidad: 'ninguna',
+  costoVariablePct: 30,
+  costosFijosMensuales: 8000,
+  desgloseCostosFijos: { personal: 5000, alquiler: 2000, servicios: 1000 },
+  marketingMensual: 500,
+  cuotasDeudaMensuales: 0,
+  capacidadMaximaMes: 2000,
+  numeroEmpleados: 3,
+  nivelCompetencia: 'media',
+  cajaDisponible: 10000,
+  satisfaccionClientes: 4.0,
+  reputacion: 4.0,
+  problemaPrincipal: {
+    categoria: 'demanda',
+    descripcion: '',
+  },
+  objetivoPrioritario: 'rentabilidad',
+  restricciones: [],
+  horizonte: 12,
+};
+
 export const CaseFormView: React.FC<CaseFormViewProps> = ({ onStartSimulation }) => {
   const [form, setForm] = useState<CaseFormInput>(PRESET_CAFETERIA);
   const [activeSection, setActiveSection] = useState<'negocio' | 'ventas' | 'costos' | 'capacidad' | 'objetivos'>('negocio');
   const [errors, setErrors] = useState<string[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const handleApplyPreset = (preset: CaseFormInput) => {
     setForm(preset);
@@ -130,7 +165,7 @@ export const CaseFormView: React.FC<CaseFormViewProps> = ({ onStartSimulation })
     setWarnings([]);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const result = validateCaseForm(form);
 
@@ -142,15 +177,28 @@ export const CaseFormView: React.FC<CaseFormViewProps> = ({ onStartSimulation })
 
     setWarnings(result.warnings);
     setErrors([]);
+    setIsGenerating(true);
 
-    // 1. Diagnóstico por reglas deterministas
-    const diagnosis = runRuleBasedDiagnosis(result.profile);
+    try {
+      // 1. Diagnóstico por reglas deterministas
+      const diagnosis = runRuleBasedDiagnosis(result.profile);
 
-    // 2. Decisiones estratégicas generadas para el rubro y caso
-    const decisions = getFallbackDecisions(result.profile.rubro);
+      // 2. Generar decisiones con IA a través del backend
+      const { decisions, source } = await generateAiDecisions(
+        result.profile,
+        diagnosis
+      );
 
-    // 3. Iniciar simulación y cambiar al panel
-    onStartSimulation(result.profile, diagnosis, decisions);
+      // 3. Iniciar simulación y pasar al dashboard
+      onStartSimulation(result.profile, diagnosis, decisions, source);
+    } catch (err: any) {
+      console.error('Error generando decisiones con IA:', err);
+      const diagnosis = runRuleBasedDiagnosis(result.profile);
+      const fallbackDecs = getFallbackDecisions(result.profile.rubro);
+      onStartSimulation(result.profile, diagnosis, fallbackDecs, 'fallback');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -251,8 +299,114 @@ export const CaseFormView: React.FC<CaseFormViewProps> = ({ onStartSimulation })
             <Laptop size={16} color="#a855f7" />
             <span>Agencia de Servicios</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => handleApplyPreset(PRESET_BLANCO)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '10px 14px',
+              borderRadius: '10px',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              background: 'rgba(255, 255, 255, 0.05)',
+              color: '#f1f5f9',
+              fontSize: '0.85rem',
+              fontWeight: 500,
+              cursor: 'pointer',
+              textAlign: 'left',
+            }}
+          >
+            <FileText size={16} color="#cbd5e1" />
+            <span>Caso en Blanco (Tu negocio)</span>
+          </button>
         </div>
       </div>
+
+      {/* Tarjeta Informativa del Motor de IA en Backend */}
+      <div
+        style={{
+          background: 'rgba(15, 23, 42, 0.65)',
+          border: '1px solid rgba(56, 189, 248, 0.25)',
+          borderRadius: '16px',
+          padding: '16px 20px',
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '14px',
+        }}
+      >
+        <div
+          style={{
+            width: '38px',
+            height: '38px',
+            borderRadius: '10px',
+            background: 'linear-gradient(135deg, #10b981, #06b6d4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            flexShrink: 0,
+          }}
+        >
+          <Sparkles size={18} />
+        </div>
+        <div>
+          <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            Motor de Inteligencia Artificial (Backend Nexora)
+            <span style={{ fontSize: '0.72rem', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.15)', padding: '2px 8px', borderRadius: '999px', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+              OpenAI Centralizado en Backend
+            </span>
+          </div>
+          <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+            Las decisiones estratégicas son analizadas y formuladas por la API de OpenAI integrada en tu servidor backend.
+          </div>
+        </div>
+      </div>
+
+      {/* Modal Overlay de Generación con IA */}
+      {isGenerating && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(10, 15, 30, 0.88)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 9999,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '20px',
+            color: '#fff',
+          }}
+        >
+          <div
+            style={{
+              width: '74px',
+              height: '74px',
+              borderRadius: '22px',
+              background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 0 40px rgba(139, 92, 246, 0.7)',
+            }}
+          >
+            <Sparkles size={36} color="#ffffff" />
+          </div>
+          <h2 style={{ fontSize: '1.45rem', fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>
+            Generando tu Simulación con IA...
+          </h2>
+          <p style={{ color: '#94a3b8', fontSize: '0.95rem', maxWidth: '440px', textAlign: 'center', margin: 0, lineHeight: 1.5 }}>
+            Procesando el caso con la IA del backend para formular 4 decisiones estratégicas cuantitativas a la medida...
+          </p>
+          <div style={{ fontSize: '0.85rem', color: '#38bdf8', fontWeight: 600 }}>
+            ⚡ Calculando impactos, caja y satisfacción...
+          </div>
+        </div>
+      )}
 
       {/* Navegación por pestañas del formulario */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '12px' }}>
@@ -379,16 +533,27 @@ export const CaseFormView: React.FC<CaseFormViewProps> = ({ onStartSimulation })
           {activeSection === 'ventas' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '6px' }}>
-                  Clientes o Pedidos por Mes *
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '6px' }}>
+                  <label style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>
+                    Clientes o Pedidos por Mes *
+                  </label>
+                  {form.clientesPorMes > 0 && (
+                    <span style={{ fontSize: '0.78rem', color: '#38bdf8' }}>
+                      ≈ {(form.clientesPorMes / 30 >= 10 ? Math.round(form.clientesPorMes / 30) : (form.clientesPorMes / 30).toFixed(1))} clientes/día
+                    </span>
+                  )}
+                </div>
                 <input
                   type="number"
+                  min="1"
                   value={form.clientesPorMes}
                   onChange={(e) => setForm({ ...form, clientesPorMes: Number(e.target.value) })}
                   style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', background: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.9rem' }}
                   required
                 />
+                <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginTop: '4px' }}>
+                  💡 Si atiendes 1 cliente al día, ingresa <strong>30</strong> clientes al mes.
+                </div>
               </div>
 
               <div>
@@ -689,6 +854,7 @@ export const CaseFormView: React.FC<CaseFormViewProps> = ({ onStartSimulation })
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
           <button
             type="submit"
+            disabled={isGenerating}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -696,16 +862,17 @@ export const CaseFormView: React.FC<CaseFormViewProps> = ({ onStartSimulation })
               padding: '14px 28px',
               borderRadius: '12px',
               border: 'none',
-              background: 'linear-gradient(135deg, #3b82f6, #06b6d4)',
+              background: isGenerating ? 'rgba(59, 130, 246, 0.5)' : 'linear-gradient(135deg, #3b82f6, #06b6d4)',
               color: '#ffffff',
               fontSize: '1rem',
               fontWeight: 600,
-              cursor: 'pointer',
+              cursor: isGenerating ? 'wait' : 'pointer',
               boxShadow: '0 0 25px -3px rgba(56, 189, 248, 0.5)',
               transition: 'transform 0.2s',
             }}
           >
-            <span>Iniciar Simulación y Ver Decisiones</span>
+            <Sparkles size={18} />
+            <span>{isGenerating ? 'Analizando y Generando con IA...' : 'Iniciar Simulación con IA'}</span>
             <ArrowRight size={18} />
           </button>
         </div>
