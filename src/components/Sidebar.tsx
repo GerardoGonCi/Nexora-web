@@ -5,10 +5,10 @@ import {
   Layers,
   Bot,
   Sparkles,
-  BookOpen
+  Lock,
 } from 'lucide-react';
 
-export type ActiveTab = 'inicio' | 'arbol' | 'comparar' | 'analista' | 'aprende';
+export type ActiveTab = 'formulario' | 'inicio' | 'arbol' | 'comparar' | 'analista';
 
 interface SidebarProps {
   activeTab: ActiveTab;
@@ -22,11 +22,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   hasActiveSimulation,
 }) => {
   const menuItems = [
-    { id: 'inicio', label: 'Inicio', icon: Home },
-    { id: 'arbol', label: 'Árbol de consecuencias', icon: GitBranch },
-    { id: 'comparar', label: 'Comparar escenarios', icon: Layers },
-    { id: 'analista', label: 'Analista IA', icon: Bot },
-    { id: 'aprende', label: 'Aprende', icon: BookOpen },
+    { id: 'formulario', label: hasActiveSimulation ? 'Nuevo Caso' : 'Iniciar Simulación', icon: Sparkles, requiresActive: false },
+    { id: 'inicio', label: 'Dashboard', icon: Home, requiresActive: true },
+    { id: 'arbol', label: 'Árbol de consecuencias', icon: GitBranch, requiresActive: true },
+    { id: 'comparar', label: 'Comparar escenarios', icon: Layers, requiresActive: true },
+    { id: 'analista', label: 'Analista IA', icon: Bot, requiresActive: true },
   ] as const;
 
   return (
@@ -97,42 +97,55 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
+            const isLocked = item.requiresActive && !hasActiveSimulation;
+
             return (
               <button
                 key={item.id}
-                onClick={() => onSelectTab(item.id)}
+                onClick={() => {
+                  if (isLocked) {
+                    onSelectTab('formulario');
+                    return;
+                  }
+                  onSelectTab(item.id);
+                }}
+                title={isLocked ? 'Inicia la simulación primero para acceder al panel' : undefined}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '12px',
+                  justifyContent: 'space-between',
                   padding: '12px 14px',
                   borderRadius: '12px',
                   border: 'none',
                   outline: 'none',
                   backgroundColor: isActive ? '#3b82f6' : 'transparent',
-                  color: isActive ? '#ffffff' : '#94a3b8',
+                  color: isActive ? '#ffffff' : isLocked ? '#475569' : '#94a3b8',
                   fontWeight: isActive ? 600 : 500,
                   fontSize: '0.88rem',
                   textAlign: 'left',
                   transition: 'all 0.2s ease',
                   boxShadow: isActive ? '0 0 20px -3px rgba(59, 130, 246, 0.5)' : 'none',
-                  cursor: 'pointer',
+                  cursor: isLocked ? 'not-allowed' : 'pointer',
+                  opacity: isLocked ? 0.6 : 1,
                 }}
                 onMouseEnter={(e) => {
-                  if (!isActive) {
+                  if (!isActive && !isLocked) {
                     e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
                     e.currentTarget.style.color = '#f1f5f9';
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (!isActive) {
+                  if (!isActive && !isLocked) {
                     e.currentTarget.style.backgroundColor = 'transparent';
                     e.currentTarget.style.color = '#94a3b8';
                   }
                 }}
               >
-                <Icon size={19} color={isActive ? '#ffffff' : '#64748b'} />
-                <span>{item.label}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <Icon size={19} color={isActive ? '#ffffff' : isLocked ? '#475569' : '#64748b'} />
+                  <span>{item.label}</span>
+                </div>
+                {isLocked && <Lock size={14} color="#64748b" />}
               </button>
             );
           })}

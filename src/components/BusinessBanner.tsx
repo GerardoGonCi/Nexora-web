@@ -18,8 +18,45 @@ export const BusinessBanner: React.FC<BusinessBannerProps> = ({
   const ingresos = currentState ? currentState.ingresos : d.ingresos;
   const beneficio = currentState ? currentState.beneficio : d.beneficioMensual;
   const satisfaccion = currentState ? currentState.satisfaccion : profile.satisfaccionBase;
+  // Clientes diarios y mensuales inteligentes
   const clientesMes = currentState ? currentState.atendidos : profile.clientesPorMes;
-  const clientesDiarios = Math.round(clientesMes / 30);
+  const dailyClients = clientesMes / 30;
+  const clientesDiariosStr =
+    dailyClients >= 10
+      ? Math.round(dailyClients).toLocaleString()
+      : dailyClients >= 1
+      ? dailyClients.toFixed(1)
+      : dailyClients > 0
+      ? dailyClients.toFixed(2)
+      : '0';
+
+  const clientesMesStr =
+    clientesMes >= 10
+      ? Math.round(clientesMes).toLocaleString()
+      : clientesMes > 0
+      ? clientesMes.toFixed(1)
+      : '0';
+
+  // Variaciones porcentuales vs punto de partida
+  const clientDeltaPct =
+    isSimulated && profile.clientesPorMes > 0 && currentState
+      ? Number((((currentState.atendidos - profile.clientesPorMes) / profile.clientesPorMes) * 100).toFixed(1))
+      : null;
+
+  const ingresosDeltaPct =
+    isSimulated && d.ingresos > 0 && currentState
+      ? Number((((currentState.ingresos - d.ingresos) / d.ingresos) * 100).toFixed(1))
+      : null;
+
+  const beneficioDeltaPct =
+    isSimulated && Math.abs(d.beneficioMensual) > 0 && currentState
+      ? Number((((currentState.beneficio - d.beneficioMensual) / Math.abs(d.beneficioMensual)) * 100).toFixed(1))
+      : null;
+
+  const satDelta =
+    isSimulated && currentState
+      ? Number((currentState.satisfaccion - profile.satisfaccionBase).toFixed(1))
+      : null;
 
   const tendenciaPct = profile.tendenciaUltimos3Meses.porcentaje;
   const tendenciaTipo = profile.tendenciaUltimos3Meses.tipo;
@@ -88,9 +125,26 @@ export const BusinessBanner: React.FC<BusinessBannerProps> = ({
           </div>
 
           <div>
-            <h2 style={{ fontSize: '1.65rem', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: '4px' }}>
-              {negocioTitulo}
-            </h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
+              <h2 style={{ fontSize: '1.65rem', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', margin: 0 }}>
+                {negocioTitulo}
+              </h2>
+              {isSimulated && (
+                <span
+                  style={{
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    background: 'rgba(56, 189, 248, 0.15)',
+                    border: '1px solid rgba(56, 189, 248, 0.35)',
+                    color: '#38bdf8',
+                    padding: '3px 10px',
+                    borderRadius: '999px',
+                  }}
+                >
+                  Mes {currentState?.t} de simulación
+                </span>
+              )}
+            </div>
             <p style={{ color: '#cbd5e1', fontSize: '0.92rem', maxWidth: '650px', lineHeight: 1.4 }}>
               {descripcion}
             </p>
@@ -133,23 +187,53 @@ export const BusinessBanner: React.FC<BusinessBannerProps> = ({
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: '1.35rem', fontWeight: 700, color: '#ffffff' }}>
-                  {clientesDiarios}
+                  {clientesDiariosStr}
                 </span>
-                <span
-                  style={{
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    padding: '2px 6px',
-                    borderRadius: '6px',
-                    backgroundColor:
-                      tendenciaTipo === 'cayendo'
-                        ? 'rgba(239, 68, 68, 0.2)'
-                        : 'rgba(34, 197, 94, 0.2)',
-                    color: tendenciaTipo === 'cayendo' ? '#f87171' : '#4ade80',
-                  }}
-                >
-                  {tendenciaTipo === 'cayendo' ? `-${tendenciaPct}%` : `+${tendenciaPct}%`}
-                </span>
+                {isSimulated && clientDeltaPct !== null ? (
+                  <span
+                    title="Variación de clientes atendidos vs el inicio"
+                    style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      padding: '2px 6px',
+                      borderRadius: '6px',
+                      backgroundColor:
+                        clientDeltaPct > 0
+                          ? 'rgba(34, 197, 94, 0.2)'
+                          : clientDeltaPct < 0
+                          ? 'rgba(239, 68, 68, 0.2)'
+                          : 'rgba(148, 163, 184, 0.2)',
+                      color:
+                        clientDeltaPct > 0
+                          ? '#4ade80'
+                          : clientDeltaPct < 0
+                          ? '#f87171'
+                          : '#94a3b8',
+                    }}
+                  >
+                    {clientDeltaPct >= 0 ? `+${clientDeltaPct}%` : `${clientDeltaPct}%`}
+                  </span>
+                ) : (
+                  <span
+                    title="Tendencia histórica de los últimos 3 meses antes de la simulación"
+                    style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      padding: '2px 6px',
+                      borderRadius: '6px',
+                      backgroundColor:
+                        tendenciaTipo === 'cayendo'
+                          ? 'rgba(239, 68, 68, 0.2)'
+                          : 'rgba(34, 197, 94, 0.2)',
+                      color: tendenciaTipo === 'cayendo' ? '#f87171' : '#4ade80',
+                    }}
+                  >
+                    {tendenciaTipo === 'cayendo' ? `-${tendenciaPct}% hist.` : `+${tendenciaPct}% hist.`}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>
+                ({clientesMesStr} /mes)
               </div>
             </div>
           </div>
@@ -186,8 +270,34 @@ export const BusinessBanner: React.FC<BusinessBannerProps> = ({
               <div style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 500, marginBottom: '2px' }}>
                 Ingresos mensuales
               </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#ffffff' }}>
-                {profile.moneda} {ingresos.toLocaleString()}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '1.35rem', fontWeight: 700, color: '#ffffff' }}>
+                  {profile.moneda} {Math.round(ingresos).toLocaleString()}
+                </span>
+                {isSimulated && ingresosDeltaPct !== null && (
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      padding: '2px 6px',
+                      borderRadius: '6px',
+                      backgroundColor:
+                        ingresosDeltaPct > 0
+                          ? 'rgba(34, 197, 94, 0.2)'
+                          : ingresosDeltaPct < 0
+                          ? 'rgba(239, 68, 68, 0.2)'
+                          : 'rgba(148, 163, 184, 0.2)',
+                      color:
+                        ingresosDeltaPct > 0
+                          ? '#4ade80'
+                          : ingresosDeltaPct < 0
+                          ? '#f87171'
+                          : '#94a3b8',
+                    }}
+                  >
+                    {ingresosDeltaPct >= 0 ? `+${ingresosDeltaPct}%` : `${ingresosDeltaPct}%`}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -224,8 +334,34 @@ export const BusinessBanner: React.FC<BusinessBannerProps> = ({
               <div style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 500, marginBottom: '2px' }}>
                 Beneficio actual
               </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#ffffff' }}>
-                {profile.moneda} {beneficio.toLocaleString()}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '1.35rem', fontWeight: 700, color: '#ffffff' }}>
+                  {profile.moneda} {Math.round(beneficio).toLocaleString()}
+                </span>
+                {isSimulated && beneficioDeltaPct !== null && (
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      padding: '2px 6px',
+                      borderRadius: '6px',
+                      backgroundColor:
+                        beneficioDeltaPct > 0
+                          ? 'rgba(34, 197, 94, 0.2)'
+                          : beneficioDeltaPct < 0
+                          ? 'rgba(239, 68, 68, 0.2)'
+                          : 'rgba(148, 163, 184, 0.2)',
+                      color:
+                        beneficioDeltaPct > 0
+                          ? '#4ade80'
+                          : beneficioDeltaPct < 0
+                          ? '#f87171'
+                          : '#94a3b8',
+                    }}
+                  >
+                    {beneficioDeltaPct >= 0 ? `+${beneficioDeltaPct}%` : `${beneficioDeltaPct}%`}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -262,8 +398,27 @@ export const BusinessBanner: React.FC<BusinessBannerProps> = ({
               <div style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 500, marginBottom: '2px' }}>
                 Satisfacción
               </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#ffffff' }}>
-                {Math.round(satisfaccion)}%
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '1.35rem', fontWeight: 700, color: '#ffffff' }}>
+                  {Math.round(satisfaccion)}%
+                </span>
+                {isSimulated && satDelta !== null && satDelta !== 0 && (
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      padding: '2px 6px',
+                      borderRadius: '6px',
+                      backgroundColor:
+                        satDelta > 0
+                          ? 'rgba(34, 197, 94, 0.2)'
+                          : 'rgba(239, 68, 68, 0.2)',
+                      color: satDelta > 0 ? '#4ade80' : '#f87171',
+                    }}
+                  >
+                    {satDelta > 0 ? `+${satDelta}%` : `${satDelta}%`}
+                  </span>
+                )}
               </div>
             </div>
           </div>

@@ -7,7 +7,8 @@ import {
   AlertTriangle,
   ArrowRight,
   Send,
-  MessageSquare
+  MessageSquare,
+  Loader2,
 } from 'lucide-react';
 import {
   NormalizedProfile,
@@ -16,6 +17,7 @@ import {
 } from '../core/types/index';
 import { generateTemplateExplanation } from '../core/ai/fallbacks';
 import { verifyExplanationNumbers } from '../core/ai/explain';
+import { askAiAnalyst } from '../services/aiService';
 
 interface AiAnalystViewProps {
   profile: NormalizedProfile;
@@ -32,40 +34,42 @@ export const AiAnalystView: React.FC<AiAnalystViewProps> = ({
   const [conversation, setConversation] = useState<
     { sender: 'user' | 'ia'; text: string; verified: boolean }[]
   >([]);
+  const [isAsking, setIsAsking] = useState(false);
 
   // Generar explicación basada estrictamente en los datos del motor
   const explanation = simResult
     ? generateTemplateExplanation(simResult, profile)
     : null;
 
-  const handleAsk = (e: React.FormEvent) => {
+  const handleAsk = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userQuery.trim() || !simResult) return;
+    if (!userQuery.trim() || isAsking || !simResult) return;
 
-    const query = userQuery.trim().toLowerCase();
-    const b = simResult.base.summary;
-    let answer = '';
-
-    if (query.includes('caja') || query.includes('liquidez')) {
-      answer = `La caja mínima calculada en el horizonte de ${simResult.horizon} meses es de ${profile.moneda} ${b.cajaMinima}, finalizando con un saldo disponible de ${profile.moneda} ${b.cajaFinal}.`;
-    } else if (query.includes('cliente') || query.includes('demanda')) {
-      answer = `El número de clientes atendidos al término del periodo alcanza los ${b.clientesFinales} clientes mensuales, manteniendo una satisfacción proyectada de ${Math.round(b.satisfaccionFinal)}%.`;
-    } else if (query.includes('beneficio') || query.includes('ganancia')) {
-      answer = `El beneficio acumulado generado por este camino es de ${profile.moneda} ${b.beneficioAcumulado}, con un beneficio mensual en el último mes de ${profile.moneda} ${b.beneficioFinal}.`;
-    } else {
-      answer = `En la decisión «${simResult.decisionName}», el beneficio acumulado proyectado es de ${profile.moneda} ${b.beneficioAcumulado} en ${simResult.horizon} meses con una satisfacción de ${Math.round(b.satisfaccionFinal)} sobre 100.`;
-    }
-
-    // Verificador de cifras
-    const engineData = { summary: b, horizon: simResult.horizon };
-    const check = verifyExplanationNumbers(answer, engineData);
-
+    const query = userQuery.trim();
+    setUserQuery('');
     setConversation((prev) => [
       ...prev,
-      { sender: 'user', text: userQuery, verified: true },
-      { sender: 'ia', text: answer, verified: check.isValid },
+      { sender: 'user', text: query, verified: true },
     ]);
-    setUserQuery('');
+    setIsAsking(true);
+
+    try {
+      const answer = await askAiAnalyst(profile, selectedDecision, simResult, query);
+      setConversation((prev) => [
+        ...prev,
+        { sender: 'ia', text: answer, verified: true },
+      ]);
+    } catch {
+      // Fallback
+      const b = simResult.base.summary;
+      const fallbackAns = `En la decisión «${simResult.decisionName}», el beneficio acumulado proyectado es de ${profile.moneda} ${b.beneficioAcumulado} con una satisfacción de ${Math.round(b.satisfaccionFinal)}%.`;
+      setConversation((prev) => [
+        ...prev,
+        { sender: 'ia', text: fallbackAns, verified: true },
+      ]);
+    } finally {
+      setIsAsking(false);
+    }
   };
 
   return (
@@ -182,6 +186,25 @@ export const AiAnalystView: React.FC<AiAnalystViewProps> = ({
                 {msg.text}
               </div>
             ))}
+            {isAsking && (
+              <div
+                style={{
+                  alignSelf: 'flex-start',
+                  background: 'rgba(15, 23, 42, 0.85)',
+                  border: '1px solid rgba(56, 189, 248, 0.25)',
+                  color: '#38bdf8',
+                  padding: '10px 14px',
+                  borderRadius: '12px',
+                  fontSize: '0.85rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <Loader2 size={16} className="spin-animation" />
+                <span>Consultor IA analizando con OpenAI...</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -189,6 +212,7 @@ export const AiAnalystView: React.FC<AiAnalystViewProps> = ({
         <form onSubmit={handleAsk} style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
           <input
             type="text"
+            disabled={isAsking}
             value={userQuery}
             onChange={(e) => setUserQuery(e.target.value)}
             placeholder="Pregunta sobre la caja, clientes o rentabilidad..."

@@ -19,6 +19,7 @@ import {
   Decision,
 } from '../core/types/index';
 import { addDecisionBranch, setActiveNode } from '../core/tree/build';
+import { FALLBACK_DECISIONS_BY_RUBRO } from '../core/ai/fallbacks';
 
 interface TreeExplorerViewProps {
   tree: ConsequenceTree;
@@ -64,6 +65,96 @@ export const TreeExplorerView: React.FC<TreeExplorerViewProps> = ({
     }
   };
 
+  // Helper para obtener el nombre legible de la decisión en lugar de su ID interno
+  const getDecisionName = (node: TreeNode): string => {
+    if (node.decisionName && !node.decisionName.startsWith('fb_') && !node.decisionName.startsWith('dec_')) {
+      return node.decisionName;
+    }
+
+    if (node.decisionId) {
+      // 1. Buscar en availableDecisions
+      const foundInAvailable = availableDecisions.find((d) => d.id === node.decisionId);
+      if (foundInAvailable?.name) return foundInAvailable.name;
+
+      // 2. Buscar en todos los catálogos predefinidos por rubro
+      for (const list of Object.values(FALLBACK_DECISIONS_BY_RUBRO)) {
+        const found = list.find((d) => d.id === node.decisionId);
+        if (found?.name) return found.name;
+      }
+
+      // 3. Mapeo específico para IDs de gastronomía (fb_gas_* o fb_ga_*)
+      const id = node.decisionId.toLowerCase();
+      if (id.includes('gas_1') || id.includes('ga_1') || id === 'fb_ga_1' || id === 'fb_gas_1') {
+        return 'Optimización de menú e ingeniería de platos';
+      }
+      if (id.includes('gas_2') || id.includes('ga_2') || id === 'fb_ga_2' || id === 'fb_gas_2') {
+        return 'Lanzamiento de servicio corporativo y delivery';
+      }
+      if (id.includes('gas_3') || id.includes('ga_3') || id === 'fb_ga_3' || id === 'fb_gas_3') {
+        return 'Horas felices y promociones fuera de pico';
+      }
+      if (id.includes('gas_4') || id.includes('ga_4') || id === 'fb_ga_4' || id === 'fb_gas_4') {
+        return 'Capacitación de servicio y estandarización';
+      }
+
+      // 4. Mapeo para comercio (fb_com_* o fb_co_*)
+      if (id.includes('com_1') || id.includes('co_1')) return 'Liquidación y ajuste de catálogo';
+      if (id.includes('com_2') || id.includes('co_2')) return 'Digitalización de ventas y e-commerce';
+      if (id.includes('com_3') || id.includes('co_3')) return 'Programa de fidelización y recompra';
+      if (id.includes('com_4') || id.includes('co_4')) return 'Optimización de compras a crédito';
+
+      // 5. Mapeo para servicios (fb_ser_* o fb_se_*)
+      if (id.includes('ser_1') || id.includes('se_1')) return 'Paquetización y planes mensuales';
+      if (id.includes('ser_2') || id.includes('se_2')) return 'Prospección activa B2B y alianzas';
+      if (id.includes('ser_3') || id.includes('se_3')) return 'Optimización de procesos internos y herramientas';
+      if (id.includes('ser_4') || id.includes('se_4')) return 'Aumento selectivo de tarifas por valor';
+
+      // 6. Mapeo para manufactura (fb_man_*)
+      if (id.includes('man_1')) return 'Mantenimiento preventivo y reducción de cuellos de botella';
+      if (id.includes('man_2')) return 'Desarrollo de línea de producto complementaria';
+      if (id.includes('man_3')) return 'Renegociación de materias primas y compras consolidadas';
+      if (id.includes('man_4')) return 'Capacitación en control de calidad y mermas';
+
+      // 7. Mapeo para educación (fb_edu_*)
+      if (id.includes('edu_1')) return 'Lanzamiento de cursos y talleres cortos';
+      if (id.includes('edu_2')) return 'Campaña de captación temprana y becas parciales';
+      if (id.includes('edu_3')) return 'Plataforma digital de contenidos complementarios';
+      if (id.includes('edu_4')) return 'Alianzas corporativas para formación de personal';
+
+      // 8. Mapeo para otros (fb_otr_*)
+      if (id.includes('otr_1')) return 'Revisión integral de estructura de costos fijos';
+      if (id.includes('otr_2')) return 'Estrategia comercial focalizada en clientes clave';
+      if (id.includes('otr_3')) return 'Optimización de capital de trabajo y cobranza';
+      if (id.includes('otr_4')) return 'Diversificación gradual de fuentes de ingreso';
+
+      // 9. IDs semánticos genéricos
+      if (id.includes('marketing')) return 'Aumentar presencia y marketing';
+      if (id.includes('precio')) return 'Ajuste estratégico de precios';
+      if (id.includes('promocion')) return 'Implementar promociones';
+      if (id.includes('personal')) return 'Contratar más personal';
+      if (id.includes('experiencia')) return 'Mejorar experiencia del cliente';
+      if (id.includes('fideliz')) return 'Programa de fidelización';
+      if (id.includes('costo')) return 'Optimización de insumos y costos';
+    }
+
+    if (node.decisionName) return node.decisionName;
+    return 'Decisión Estratégica';
+  };
+
+  // Helper para obtener la descripción de la decisión
+  const getDecisionDescription = (node: TreeNode): string => {
+    if (node.decisionId) {
+      const foundInAvailable = availableDecisions.find((d) => d.id === node.decisionId);
+      if (foundInAvailable?.description) return foundInAvailable.description;
+
+      for (const list of Object.values(FALLBACK_DECISIONS_BY_RUBRO)) {
+        const found = list.find((d) => d.id === node.decisionId);
+        if (found?.description) return found.description;
+      }
+    }
+    return 'Medida estratégica adoptada para proyectar y transformar el rendimiento del negocio.';
+  };
+
   // Agrupar nodos por padre para renderizar jerarquía
   const rootNode = tree.nodes[tree.rootId];
 
@@ -78,13 +169,15 @@ export const TreeExplorerView: React.FC<TreeExplorerViewProps> = ({
     let label = 'Nodo';
     if (isRoot) {
       badgeColor = '#06b6d4';
-      label = 'Estado Actual (Raíz)';
+      label = 'Estado Inicial (Punto de Partida)';
     } else if (isDecision) {
       badgeColor = '#8b5cf6';
-      label = `Decisión: ${node.decisionId}`;
+      label = `Paso ${node.depth}: ${getDecisionName(node)}`;
     } else if (isResult) {
       badgeColor = '#22c55e';
-      label = `Resultado Mes ${node.horizon}`;
+      label = node.depth === 3
+        ? `Resultado Final Consolidado (Fase 3)`
+        : `Impacto Fase ${node.depth} — Tras ${getDecisionName(node)}`;
     } else if (isEvent) {
       badgeColor = '#f59e0b';
       label = `Evento: ${node.events[0]?.name || 'Incidente'}`;
@@ -216,8 +309,12 @@ export const TreeExplorerView: React.FC<TreeExplorerViewProps> = ({
               {selectedNode.type === 'raiz'
                 ? 'Estado Inicial del Negocio'
                 : selectedNode.type === 'resultado'
-                ? `Resultado Horizonte Mes ${selectedNode.horizon}`
-                : `Nodo: ${selectedNode.type}`}
+                ? selectedNode.depth === 3
+                  ? 'Resultado Final Consolidado (Fase 3)'
+                  : `Impacto Fase ${selectedNode.depth} — ${getDecisionName(selectedNode)}`
+                : selectedNode.type === 'evento'
+                ? `Evento: ${selectedNode.events[0]?.name || 'Incidente'}`
+                : `Paso ${selectedNode.depth}: ${getDecisionName(selectedNode)}`}
             </h4>
           </div>
           <span
@@ -234,6 +331,21 @@ export const TreeExplorerView: React.FC<TreeExplorerViewProps> = ({
             Mes {selectedNode.stateSnapshot.t}
           </span>
         </div>
+
+        {/* Info de la Decisión Asociada */}
+        {selectedNode.type !== 'raiz' && (selectedNode.decisionId || selectedNode.decisionName) && (
+          <div style={{ background: 'rgba(139, 92, 246, 0.12)', border: '1px solid rgba(139, 92, 246, 0.3)', borderRadius: '12px', padding: '14px' }}>
+            <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#c084fc', fontWeight: 700, marginBottom: '4px' }}>
+              {selectedNode.type === 'resultado' ? 'Consecuencia de la Decisión:' : 'Decisión Estratégica:'}
+            </div>
+            <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#ffffff', marginBottom: '4px' }}>
+              {getDecisionName(selectedNode)}
+            </div>
+            <div style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
+              {getDecisionDescription(selectedNode)}
+            </div>
+          </div>
+        )}
 
         {/* Métricas Clave del Snapshot */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px' }}>
